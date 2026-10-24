@@ -304,13 +304,12 @@
         <div>
           <span class="px-3 py-1 bg-brand-accent text-slate-950 font-black text-[10px] uppercase tracking-widest rounded-full w-max mb-3 inline-block">Hall of Fame</span>
           <h2 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">Galeri Kebanggaan Alumni DWI TUNGGAL</h2>
-          <p class="text-xs sm:text-sm text-slate-300 mt-1 max-w-xl">Bukti nyata perjuangan para casis,catar,capra, yang telah berhasil menembus cita-cita berseragam TNI, POLRI, dan Sekolah Kedinasan.</p>
+          <p class="text-xs sm:text-sm text-slate-300 mt-1 max-w-xl">Bukti nyata perjuangan para casis, catar, capra, yang telah berhasil menembus cita-cita berseragam TNI, POLRI, dan Sekolah Kedinasan.</p>
         </div>
         <button id="btn-add-alumni" onclick="openAlumniModal()" class="hidden bg-brand-accent hover:bg-lime-400 text-slate-950 font-extrabold px-5 py-3 rounded-xl transition text-xs uppercase tracking-wider flex items-center gap-2 shadow-lg shadow-lime-400/10">
           <i data-lucide="plus-circle" class="w-4 h-4"></i> Tambah Alumni
         </button>
       </div>
-
       <!-- Grid Daftar Alumni -->
       <div id="alumni-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
     </section>
@@ -409,6 +408,7 @@
     window.addEventListener('firebase-ready', async () => {
       await loadUsersFromCloud();
       await loadAlumniFromCloud();
+      await loadFeedsFromCloud();
       const sess = localStorage.getItem('dt_session');
       if(!sess) { window.location.href = 'login.html'; return; }
       currentUser = JSON.parse(sess);
@@ -467,6 +467,39 @@
       }
     }
 
+    // FIREBASE FEEDS / DOKUMENTASI LATIHAN SHARED & 7 HARI CLEANUP
+    async function loadFeedsFromCloud() {
+      try {
+        const querySnapshot = await window.getDocs(window.collection(window.db, "feeds"));
+        const cloudFeeds = [];
+        const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+        const now = Date.now();
+
+        for (const docSnap of querySnapshot.docs) {
+          const data = docSnap.data();
+          // Cek apakah sudah lebih dari 7 hari
+          if (data.timestamp && (now - data.timestamp) >= ONE_WEEK_MS) {
+            // Hapus otomatis dari cloud jika sudah > 7 hari
+            await window.deleteDoc(window.doc(window.db, "feeds", docSnap.id));
+          } else {
+            cloudFeeds.push(data);
+          }
+        }
+        attDb = cloudFeeds;
+        renderFeed();
+      } catch(err) {
+        console.error("Gagal memuat feeds dari cloud:", err);
+      }
+    }
+
+    async function saveFeedToCloud(feedObj) {
+      try {
+        await window.setDoc(window.doc(window.db, "feeds", feedObj.id), feedObj);
+      } catch(err) {
+        console.error("Gagal menyimpan feed ke cloud:", err);
+      }
+    }
+
     function initApp() {
       let foundInDb = usersDb.find(u => (u.username || '').toLowerCase() === (currentUser.username || '').toLowerCase());
       if(foundInDb) currentUser = foundInDb;
@@ -476,7 +509,6 @@
       const userRole = (currentUser.role || '').toLowerCase();
       const isCoach = userRole === 'coach' || userRole === 'pelatih';
       document.getElementById('badge-role').textContent = isCoach ? 'COACH' : 'SISWA';
-
       if(isCoach) {
         document.getElementById('panel-student-att').classList.add('hidden');
         document.getElementById('panel-coach-att').classList.remove('hidden');
@@ -556,17 +588,61 @@
       `).join('');
     }
 
-    function submitAttendance(e) {
+    // Fungsi helper compress gambar agar tidak hitam/rusak dan optimal ukurannya
+    async function compressImage(file) {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = function(event) {
+          const img = new Image();
+          img.onload = function() {
+            const canvas = document.createElement('canvas');
+            const MAX_WIDTH = 800;
+            const MAX_HEIGHT = 800;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+              if (width > MAX_WIDTH) {
+                height *= MAX_WIDTH / width;
+                width = MAX_WIDTH;
+              }
+            } else {
+              if (height > MAX_HEIGHT) {
+                width *= MAX_HEIGHT / height;
+                height = MAX_HEIGHT;
+              }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            // Background putih mencegah latar transparan menjadi hitam
+            ctx.fillStyle = "#FFFFFF";
+            ctx.fillRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.75));
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    async function submitAttendance(e) {
       e.preventDefault();
       const type = document.getElementById('att-type').value;
       const condition = document.getElementById('att-cond').value;
       const notes = document.getElementById('att-notes').value;
       const fileInput = document.getElementById('att-file');
+      
       let photoUrl = 'https://images.unsplash.com/photo-1517838277536-f5f99be501cd?w=400&q=80';
       if(fileInput.files && fileInput.files[0]) {
-        photoUrl = URL.createObjectURL(fileInput.files[0]);
+        photoUrl = await compressImage(fileInput.files[0]);
       }
-      attDb.unshift({ 
+
+      const feedId = 'feed_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+      const newFeed = { 
+        id: feedId,
         name: currentUser.name, 
         type, 
         condition, 
@@ -574,11 +650,16 @@
         timestamp: Date.now(), 
         photo: photoUrl, 
         notes 
-      });
-      localStorage.setItem('dt_att', JSON.stringify(attDb));
-      alert('Absensi & foto berhasil dikirim!');
+      };
+
+      // Simpan ke Cloud Firestore agar bisa dilihat semua akun
+      await saveFeedToCloud(newFeed);
+      await loadFeedsFromCloud();
+
+      alert('Absensi & foto berhasil dikirim ke server!');
       switchNav('beranda');
-      renderFeed();
+      document.getElementById('att-notes').value = '';
+      document.getElementById('att-file').value = '';
     }
 
     function calcScoreFromScores(s, gender) {
@@ -587,7 +668,6 @@
       const val = ((s.lari/3000)*30 + (pullVal/15)*20 + (s.push/40)*20 + (s.sit/40)*20 + (20/s.shuttle)*10);
       return Math.min(Math.max(val, 0), 100);
     }
-
     function calcScore(st) {
       if (!st.historyScores || st.historyScores.length === 0) return 75.0;
       const validScores = st.historyScores.filter(item => item.trainingType !== 'Tidak Hadir / Izin (Alpha)');
@@ -595,7 +675,6 @@
       const latest = validScores[validScores.length - 1].scores;
       return calcScoreFromScores(latest, st.gender);
     }
-
     function renderLeaderboard(mode) {
       document.getElementById('btn-rn-nilai').className = mode==='nilai' ? "px-3 py-1.5 rounded-lg bg-brand-accent text-slate-950 transition" : "px-3 py-1.5 rounded-lg text-slate-400 transition";
       document.getElementById('btn-rn-rajin').className = mode==='rajin' ? "px-3 py-1.5 rounded-lg bg-brand-accent text-slate-950 transition" : "px-3 py-1.5 rounded-lg text-slate-400 transition";
@@ -618,7 +697,6 @@
         </tr>
       `).join('');
     }
-
     function initCoach() {
       const students = usersDb.filter(u => {
         const r = (u.role || '').toLowerCase();
@@ -643,7 +721,6 @@
       renderMonthlyAttendanceEval();
       renderStudentDetail();
     }
-
     function toggleAbsenInput() {
       const val = document.getElementById('input-training-type').value;
       const boxLari = document.getElementById('box-input-lari');
@@ -657,7 +734,6 @@
         boxSamaptaB.style.display = 'grid';
       }
     }
-
     async function saveDailyAttendance() {
       const dropdowns = document.querySelectorAll('.coach-daily-status');
       for (let drop of dropdowns) {
@@ -676,7 +752,6 @@
       renderMonthlyAttendanceEval();
       renderLeaderboard('rajin');
     }
-
     function renderMonthlyAttendanceEval() {
       const students = usersDb.filter(u => {
         const r = (u.role || '').toLowerCase();
@@ -711,7 +786,6 @@
       }).join('');
       lucide.createIcons();
     }
-
     async function expelStudent(username) {
       const student = usersDb.find(u => u.username === username);
       if(!student) return;
@@ -727,13 +801,11 @@
         }
       }
     }
-
     async function renderStudentDetail() {
       await loadUsersFromCloud();
       
       const userRole = (currentUser.role || '').toLowerCase();
       const isCoach = userRole === 'coach' || userRole === 'pelatih';
-
       if(isCoach) {
         const uname = document.getElementById('select-student').value;
         selectedStudent = usersDb.find(u => u.username === uname);
@@ -847,7 +919,6 @@
         }
       });
     }
-
     async function addNewWeeklyScore(e) {
       e.preventDefault();
       if(!selectedStudent) return;
@@ -875,15 +946,12 @@
       renderStudentDetail();
       renderLeaderboard('nilai');
     }
-
     // FUNGSI GALERI ALUMNI
     function renderAlumniGrid() {
       const grid = document.getElementById('alumni-grid');
       if(!grid) return;
-
       const userRole = (currentUser?.role || '').toLowerCase();
       const isCoach = userRole === 'coach' || userRole === 'pelatih';
-
       if (alumniDb.length === 0) {
         grid.innerHTML = `
           <div class="col-span-full text-center py-12 bg-brand-800/40 border border-brand-700 rounded-2xl text-slate-500 text-xs">
@@ -891,7 +959,6 @@
           </div>`;
         return;
       }
-
       grid.innerHTML = alumniDb.map(a => `
         <div class="bg-brand-800/80 border border-brand-700 rounded-3xl overflow-hidden flex flex-col justify-between shadow-xl transition-all hover:border-brand-accent/50 group">
           <div class="relative h-72 w-full overflow-hidden bg-brand-900">
@@ -913,7 +980,6 @@
               </button>
             </div>
             ` : ''}
-
             <div class="absolute bottom-3 left-4 right-4">
               <h4 class="text-base font-extrabold text-white tracking-tight">${a.name}</h4>
               <p class="text-[11px] text-brand-accent font-semibold">Alumni DwiTunggal</p>
@@ -926,7 +992,6 @@
       `).join('');
       lucide.createIcons();
     }
-
     function openAlumniModal() {
       document.getElementById('modal-alumni-title').innerHTML = `<i data-lucide="award" class="w-4 h-4 text-brand-accent"></i> Tambah Alumni Baru`;
       document.getElementById('alm-id').value = '';
@@ -938,11 +1003,9 @@
       document.getElementById('modal-alumni').classList.remove('hidden');
       lucide.createIcons();
     }
-
     function closeAlumniModal() {
       document.getElementById('modal-alumni').classList.add('hidden');
     }
-
     function editAlumni(id) {
       const alm = alumniDb.find(a => a.id === id);
       if(!alm) return;
@@ -956,7 +1019,6 @@
       document.getElementById('modal-alumni').classList.remove('hidden');
       lucide.createIcons();
     }
-
     async function submitAlumniForm(e) {
       e.preventDefault();
       const id = document.getElementById('alm-id').value || 'alm_' + Date.now();
@@ -965,25 +1027,16 @@
       const year = document.getElementById('alm-year').value;
       const quote = document.getElementById('alm-quote').value;
       const fileInput = document.getElementById('alm-file');
-
       let existing = alumniDb.find(a => a.id === id);
       let photoUrl = existing ? existing.photo : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=500&q=80';
-
       if(fileInput.files && fileInput.files[0]) {
-        const file = fileInput.files[0];
-        photoUrl = await new Promise((resolve) => {
-          const reader = new FileReader();
-          reader.onload = (e) => resolve(e.target.result);
-          reader.readAsDataURL(file);
-        });
+        photoUrl = await compressImage(fileInput.files[0]);
       }
-
       const alumniObj = { id, name, target, year, quote, photo: photoUrl };
       await saveAlumniToCloud(alumniObj);
       closeAlumniModal();
       alert('Data alumni berhasil disimpan!');
     }
-
     async function deleteAlumni(id) {
       const alm = alumniDb.find(a => a.id === id);
       if(!alm) return;
@@ -992,12 +1045,10 @@
         alert('Alumni berhasil dihapus.');
       }
     }
-
     function toggleCalcLabel() {
       const g = document.getElementById('calc-gen').value;
       document.getElementById('lbl-c-pull').textContent = g==='wanita' ? 'Chinning (Kali)' : 'Pull Up (Kali)';
     }
-
     function calculateManual() {
       const lari = parseFloat(document.getElementById('c-lari').value) || 2500;
       const pull = parseFloat(document.getElementById('c-pull').value) || 12;
