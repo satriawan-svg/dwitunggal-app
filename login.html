@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="id" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DWI TUNGGAL | Portal Akses Taktis</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: { 900: '#090d09', 800: '#111812', 700: '#1b261d', 600: '#2b3f2f', 500: '#436848', accent: '#a3e635' }
+          }
+        }
+      }
+    }
+  </script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Firebase SDK & Konfigurasi -->
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getFirestore, collection, getDocs, doc, setDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCl9M6Wkts3I8G198W3R0dpfRS9-epTrC",
+      authDomain: "dwitunggal-app.firebaseapp.com",
+      projectId: "dwitunggal-app",
+      storageBucket: "dwitunggal-app.firebasestorage.app",
+      messagingSenderId: "425664691358",
+      appId: "1:425664691358:web:4ca60109c231ee0df74f8f"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getFirestore(app);
+
+    window.db = db;
+    window.collection = collection;
+    window.getDocs = getDocs;
+    window.doc = doc;
+    window.setDoc = setDoc;
+
+    window.dispatchEvent(new Event('firebase-ready'));
+  </script>
+
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@600&display=swap" rel="stylesheet">
+  <style>
+    body { font-family: 'Plus Jakarta Sans', sans-serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
+  </style>
+</head>
+<body class="bg-brand-900 text-slate-100 min-h-screen flex items-center justify-center p-4 relative overflow-hidden">
+  
+  <div class="absolute inset-0 bg-[linear-gradient(to_right,#1b261d_1px,transparent_1px),linear-gradient(to_bottom,#1b261d_1px,transparent_1px)] bg-[size:4rem_4rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_50%,#000_70%,transparent_100%)] opacity-30"></div>
+
+  <div class="w-full max-w-md bg-brand-800/80 border border-brand-700 backdrop-blur-xl rounded-3xl shadow-2xl p-8 relative z-10">
+    <div class="text-center mb-8">
+      <div class="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-brand-accent text-slate-950 font-black shadow-lg shadow-lime-400/10 mb-3">
+        <i data-lucide="shield" class="w-7 h-7 stroke-[2.5]"></i>
+      </div>
+      <h1 class="text-2xl font-extrabold tracking-tight text-white">DWI TUNGGAL</h1>
+      <p class="text-xs text-brand-accent font-semibold tracking-widest uppercase mt-1">JASMANI & ROHANI</p>
+    </div>
+
+    <!-- Tab Switcher -->
+    <div class="grid grid-cols-2 p-1 bg-brand-900 rounded-2xl mb-6 border border-brand-700 text-xs font-bold">
+      <button id="btn-tab-login" onclick="switchTab('login')" class="py-2.5 rounded-xl transition bg-brand-700 text-brand-accent shadow">Masuk</button>
+      <button id="btn-tab-reg" onclick="switchTab('reg')" class="py-2.5 rounded-xl transition text-slate-400 hover:text-white">Daftar Akun</button>
+    </div>
+
+    <!-- Form Login -->
+    <form id="form-login" onsubmit="handleLogin(event)" class="space-y-4">
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Username</label>
+        <div class="relative">
+          <i data-lucide="user" class="w-4 h-4 absolute left-3.5 top-3.5 text-slate-500"></i>
+          <input type="text" id="l-user" required placeholder="Masukkan username..." class="w-full bg-brand-900 border border-brand-700 rounded-xl py-3 pl-10 pr-4 text-sm text-white focus:outline-none focus:border-brand-accent transition">
+        </div>
+      </div>
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Password</label>
+        <div class="relative">
+          <i data-lucide="lock" class="w-4 h-4 absolute left-3.5 top-3.5 text-slate-500"></i>
+          <input type="password" id="l-pass" required placeholder="••••••••" class="w-full bg-brand-900 border border-brand-700 rounded-xl py-3 pl-10 pr-10 text-sm text-white focus:outline-none focus:border-brand-accent transition">
+          <button type="button" onclick="togglePasswordVisibility('l-pass', 'eye-icon-login')" class="absolute right-3 top-3.5 text-slate-500 hover:text-brand-accent transition focus:outline-none">
+            <i id="eye-icon-login" data-lucide="eye" class="w-4 h-4"></i>
+          </button>
+        </div>
+      </div>
+      <div>
+        <label class="block text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-1.5">Akses Sebagai</label>
+        <div class="grid grid-cols-2 gap-2 text-xs">
+          <label class="cursor-pointer border border-brand-700 rounded-xl p-3 flex items-center justify-center gap-2 bg-brand-900/50 has-[:checked]:border-brand-accent has-[:checked]:bg-brand-accent/10 transition font-bold">
+            <input type="radio" name="l-role" value="siswa" checked class="accent-lime-400"> Siswa
+          </label>
+          <label class="cursor-pointer border border-brand-700 rounded-xl p-3 flex items-center justify-center gap-2 bg-brand-900/50 has-[:checked]:border-brand-accent has-[:checked]:bg-brand-accent/10 transition font-bold">
+            <input type="radio" name="l-role" value="coach" class="accent-lime-400"> Pelatih
+          </label>
+        </div>
+      </div>
+      <button type="submit" class="w-full bg-brand-accent hover:bg-lime-400 text-slate-950 font-extrabold py-3.5 rounded-xl transition text-xs tracking-wider uppercase shadow-lg shadow-lime-400/20 mt-2 flex items-center justify-center gap-2">
+        <span>Masuk Dashboard</span> <i data-lucide="arrow-right" class="w-4 h-4"></i>
+      </button>
+    </form>
+
+    <!-- Form Register -->
+    <form id="form-reg" onsubmit="handleRegister(event)" class="space-y-3.5 hidden">
+      <div>
+        <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Nama Lengkap</label>
+        <input type="text" id="r-name" required placeholder="Contoh: Budi Santoso" class="w-full bg-brand-900 border border-brand-700 rounded-xl py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-brand-accent transition">
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Username</label>
+          <input type="text" id="r-user" required placeholder="username" class="w-full bg-brand-900 border border-brand-700 rounded-xl py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-brand-accent transition">
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Password</label>
+          <div class="relative">
+            <input type="password" id="r-pass" required placeholder="••••••" class="w-full bg-brand-900 border border-brand-700 rounded-xl py-2.5 pl-3.5 pr-8 text-xs text-white focus:outline-none focus:border-brand-accent transition">
+            <button type="button" onclick="togglePasswordVisibility('r-pass', 'eye-icon-reg')" class="absolute right-2.5 top-2.5 text-slate-500 hover:text-brand-accent transition focus:outline-none">
+              <i id="eye-icon-reg" data-lucide="eye" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="grid grid-cols-2 gap-2">
+        <div>
+          <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Gender</label>
+          <select id="r-gender" class="w-full bg-brand-900 border border-brand-700 rounded-xl py-2.5 px-3 text-xs text-white focus:outline-none focus:border-brand-accent transition">
+            <option value="pria">Pria</option>
+            <option value="wanita">Wanita</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Peran</label>
+          <select id="r-role" class="w-full bg-brand-900 border border-brand-700 rounded-xl py-2.5 px-3 text-xs text-white focus:outline-none focus:border-brand-accent transition">
+            <option value="siswa">Siswa</option>
+            <option value="coach">Pelatih</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label class="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1">Target Institusi</label>
+        <select id="r-target" class="w-full bg-brand-900 border border-brand-700 rounded-xl py-2.5 px-3.5 text-xs text-white focus:outline-none focus:border-brand-accent transition">
+          <option value="POLRI">POLRI</option>
+          <option value="TNI">TNI</option>
+          <option value="KEDINASAN">KEDINASAN</option>
+        </select>
+      </div>
+      <button type="submit" class="w-full bg-brand-accent hover:bg-lime-400 text-slate-950 font-extrabold py-3 rounded-xl transition text-xs tracking-wider uppercase shadow-lg shadow-lime-400/20 mt-2 flex items-center justify-center gap-2">
+        <i data-lucide="user-plus" class="w-4 h-4"></i> <span>Daftar Akun</span>
+      </button>
+    </form>
+  </div>
+
+  <script>
+    lucide.createIcons();
+
+    function switchTab(t) {
+      const isL = t === 'login';
+      document.getElementById('form-login').classList.toggle('hidden', !isL);
+      document.getElementById('form-reg').classList.toggle('hidden', isL);
+      document.getElementById('btn-tab-login').className = isL ? "py-2.5 rounded-xl transition bg-brand-700 text-brand-accent shadow" : "py-2.5 rounded-xl transition text-slate-400 hover:text-white";
+      document.getElementById('btn-tab-reg').className = !isL ? "py-2.5 rounded-xl transition bg-brand-700 text-brand-accent shadow" : "py-2.5 rounded-xl transition text-slate-400 hover:text-white";
+    }
+
+    function togglePasswordVisibility(inputId, iconId) {
+      const inputEl = document.getElementById(inputId);
+      const iconEl = document.getElementById(iconId);
+
+      if (inputEl.type === 'password') {
+        inputEl.type = 'text';
+        iconEl.setAttribute('data-lucide', 'eye-off');
+      } else {
+        inputEl.type = 'password';
+        iconEl.setAttribute('data-lucide', 'eye');
+      }
+      lucide.createIcons();
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      const u = document.getElementById('l-user').value.trim().toLowerCase();
+      const p = document.getElementById('l-pass').value;
+      const r = document.querySelector('input[name="l-role"]:checked').value;
+
+      try {
+        const querySnapshot = await window.getDocs(window.collection(window.db, "users"));
+        let usersDb = [];
+        querySnapshot.forEach((doc) => { usersDb.push(doc.data()); });
+
+        let found = usersDb.find(x => (x.username || '').toLowerCase() === u && x.role === r);
+
+        if(!found) {
+          alert('Akun tidak ditemukan di database cloud! Silakan daftar terlebih dahulu.');
+          return;
+        }
+
+        if (!found.password || found.password !== p) {
+          alert('Password yang Anda masukkan salah!');
+          return;
+        }
+
+        localStorage.setItem('dt_session', JSON.stringify(found));
+        window.location.href = 'index.html';
+      } catch(err) {
+        alert("Gagal terhubung ke database cloud: " + err.message);
+      }
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      const name = document.getElementById('r-name').value.trim();
+      const username = document.getElementById('r-user').value.trim().toLowerCase();
+      const password = document.getElementById('r-pass').value;
+      const gender = document.getElementById('r-gender').value;
+      const role = document.getElementById('r-role').value;
+      const target = document.getElementById('r-target').value;
+
+      try {
+        const querySnapshot = await window.getDocs(window.collection(window.db, "users"));
+        let usersDb = [];
+        let exists = false;
+
+        querySnapshot.forEach((doc) => {
+          const data = doc.data();
+          usersDb.push(data);
+          // Pengaman jika ada field username yang undefined/kosong di database
+          if ((data.username || '').toLowerCase() === username) exists = true;
+        });
+
+        if(exists) {
+          alert('Username sudah digunakan! Silakan pilih username lain.');
+          return;
+        }
+
+        if(role === 'coach') {
+          const existingCoach = usersDb.find(u => u.role === 'coach');
+          if(existingCoach) {
+            alert('Akses Ditolak! Akun Coach/Pelatih sudah terdaftar di sistem. Hanya 1 akun Coach yang diizinkan.');
+            return;
+          }
+        }
+
+        const newUser = {
+          username,
+          password,
+          name,
+          role,
+          gender,
+          target,
+          historyScores: [],
+          attendanceCount: 0
+        };
+
+        await window.setDoc(window.doc(window.db, "users", username), newUser);
+        
+        alert('Pendaftaran berhasil! Akun Anda tersimpan permanen di cloud.');
+        switchTab('login');
+      } catch(err) {
+        alert("Gagal mendaftarkan akun: " + err.message);
+      }
+    }
+  </script>
+</body>
+</html>
